@@ -110,6 +110,22 @@ class MafiaGame:
         zeroes = [0] * len(alive)
         self.vote_table = dict(zip(alive, zeroes))
 
+    def are_townies_winning(self):
+        mafia_status = [m.is_alive for m in self.mafias]
+        if any(mafia_status):
+            return False
+        else:
+            return True
+
+    def are_mafias_winning(self):
+        mafia_status = [m.is_alive for m in self.mafias]
+        player_status = [p.is_alive for p in self.players]
+
+        if sum(mafia_status) >= sum(player_status)/2:
+            return True
+        else:
+            return False
+
 class LexicantGame:
     def __init__(self, accepting_timeout=DEFAULT_TIMEOUT):
         self.is_accepting = False

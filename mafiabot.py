@@ -59,13 +59,16 @@ async def on_message(message):
 
             #Notify the mafias of the other mafias.
             for m in mafia.mafias:
-                await client.send_message(m.user, "The other mafias are: ")
+                await client.send_message(m.user, "Your teammates are: ")
                 await client.send_message(m.user, " ".join([m.name for m in mafia.mafias]))
 
             #Start game proper.
             await client.send_message(message.channel, "It is "
             "now {} {}.".format(mafia.day_phase, mafia.day_num))
 
+            if mafia.are_mafias_winning():
+                await client.send_message(message.channel, "Mafias won!")
+                mafia.end_game()
             #Since it is now day, create  a vote table.
             mafia.make_vote_table()
             print(mafia.vote_table)
@@ -98,6 +101,14 @@ async def on_message(message):
                     if mafia.vote_table[mafia.user_to_player[lynching]] >= math.floor(len(mafia.vote_table)/2)+1:
                         await client.send_message(message.channel, "<@{}> has been lynched!".format(lynching.id))
                         mafia.user_to_player[lynching].is_alive = False
+
+                        if mafia.are_townies_winning():
+                            await client.send_message(message.channel, "Townies won!")
+                            mafia.end_game()
+
+                        elif mafia.are_mafias_winning():
+                            await client.send_message(message.channel, "Mafias won!")
+                            mafia.end_game()
                 else:
                     await client.send_message(message.channel, "{} is already dead!".format(p.name))
         elif mafia.is_ongoing and mafia.day_phase == "Night":
@@ -111,8 +122,6 @@ async def on_message(message):
         if not message.channel.is_private:
             await client.send_message(message.channel, "You can't just post "
             "who you're killing like that!")
-        else:
-            await client.send_message(message.channel, "Kill")
 
     elif message.content.startswith("*>whoami"):
         if mafia.is_ongoing:
