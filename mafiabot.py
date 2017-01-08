@@ -1,6 +1,6 @@
 import discord
 import asyncio
-import random
+import math
 import classes
 
 client = discord.Client()
@@ -23,51 +23,91 @@ async def on_ready():
 async def on_message(message):
     if message.content.startswith("*>start"):
         #Check if no game is ongoing.
-        if not g.is_ongoing:
+        if not mafia.is_ongoing:
             #If there is an optional timeout parameter given,
             #set timeout to that.
             arg = message.content.split(" ")
             if len(arg) > 1:
-                g.timeout = int(arg[1])
+                mafia.timeout = int(arg[1])
 
             #Default reminder to all members of the chat at
             #the start of the game.
             await client.send_message(message.channel, "Game has started! "
                 "Players who want to join may type '*>join'. "
-                "Joining period will last for {} seconds.".format(g.timeout))
+                "Joining period will last for {} seconds.".format(mafia.timeout))
 
             #Starts the game, automatically allowing joining in the game.
-            g.start_game()
-            await asyncio.sleep(g.timeout)
+            mafia.start_game()
+            await asyncio.sleep(mafia.timeout)
 
             #Stop accepting players.
-            g.stop_accepting()
+            mafia.stop_accepting()
 
             #List all the players in the game.
             await client.send_message(message.channel, "Joining period has "
             "ended. The players are:")
             await client.send_message(message.channel,
-                                      ", ".join([p.name for p in g.players]))
+                                      ", ".join([p.name for p in mafia.players]))
 
-            #Start day 1 of the game.
+            #Assign roles to players.
+            await client.send_message(message.channel, "Assigning roles.")
+            mafia.give_roles()
             await client.send_message(message.channel, "PM-ing roles to "
             "the players.")
+            for p in mafia.players:
+                await client.send_message(p.user, "You are a {}.".format(p.role))
+
+            #Notify the mafias of the other mafias.
+            for m in mafia.mafias:
+                await client.send_message(m.user, "The other mafias are: ")
+                await client.send_message(m.user, " ".join([m.name for m in mafia.mafias]))
+
+            #Start game proper.
             await client.send_message(message.channel, "It is "
-            "now {} {}.".format(g.day_phase, g.day_num))
+            "now {} {}.".format(mafia.day_phase, mafia.day_num))
 
-
+            #Since it is now day, create  a vote table.
+            mafia.make_vote_table()
+            print(mafia.vote_table)
         else:
             await client.send_message(message.channel, "A game is "
             "currently ongoing.")
 
-    elif message.content.startswith("*>lynch"):
-        if g.is_ongoing and g.day_phase == "Day":
-            pass
-        elif g.is_ongoing and g.day_phase == "Night":
+    elif message.content.startswith("*>vote"):
+        #Check if sender is part of the game.
+        if message.author.name not in [p.name for p in mafia.players]:
+            await client.send_message(message.channel, "Sorry, you're not in the game, you can't do that.")
+            return
+
+        #Check if the game is ongoing and it is currently day phase.
+        if mafia.is_ongoing and mafia.day_phase == "Day":
+            #Get the lynched person.
+            lynching = message.mentions[0]
+
+            #Check if the lynched person is part of the game.
+            if mafia.user_to_player[lynching] not in mafia.vote_table:
+                await client.send_message(message.channel, "You can't lynch someone who isn't in the game!")
+
+            else:
+                #Check if lynched person is alive.
+                if mafia.user_to_player[lynching].is_alive:
+                    await client.send_message(message.channel, "{} voted for {}!".format(message.author.name, lynching.name))
+                    mafia.vote_table[mafia.user_to_player[lynching]] += 1
+
+                    #Check if death happens.
+                    if mafia.vote_table[mafia.user_to_player[lynching]] >= math.floor(len(mafia.vote_table)/2)+1:
+                        await client.send_message(message.channel, "<@{}> has been lynched!".format(lynching.id))
+                        mafia.user_to_player[lynching].is_alive = False
+                else:
+                    await client.send_message(message.channel, "{} is already dead!".format(p.name))
+        elif mafia.is_ongoing and mafia.day_phase == "Night":
             await client.send_message(message.channel, "No lynching during "
             "nights. Go sleep!")
 
     elif message.content.startswith("*>kill"):
+        if message.author.name not in [p.name for p in mafia.players]:
+            await client.send_message(message.channel, "Sorry, you're not in the game, you can't do that.")
+            return
         if not message.channel.is_private:
             await client.send_message(message.channel, "You can't just post "
             "who you're killing like that!")
@@ -75,9 +115,12 @@ async def on_message(message):
             await client.send_message(message.channel, "Kill")
 
     elif message.content.startswith("*>whoami"):
-        if g.is_ongoing:
+        if mafia.is_ongoing:
+            if message.author.name not in [p.name for p in mafia.players]:
+                await client.send_message(message.channel, "Sorry, you're not in the game, you can't do that.")
+                return
             found = False
-            for p in g.players:
+            for p in mafia.players:
                 if p.name == message.author.name:
                     found = True
                     if p.is_alive:
@@ -90,20 +133,16 @@ async def on_message(message):
                     else:
                         await client.send_message(message.author, "Sorry {}, "
                         "you are dead.".format(message.author.name))
-            if not found:
-                await client.send_message(message.channel, "Sorry {}, you "
-                "are not part of the game.".format(message.author.name))
         else:
             await client.send_message(message.channel, "No ongoing game.")
 
     elif message.content.startswith("*>join"):
-        if(g.is_ongoing and g.is_accepting):
-            await client.send_message(message.channel, "@" +
-                                      message.author.name + " has joined!")
-            g.add_player(message.author.name)
+        if(mafia.is_ongoing and mafia.is_accepting):
+            await client.send_message(message.channel,
+                                      "<@{}> has joined!".format(message.author.id))
+            mafia.add_player(message.author)
 
     elif message.content.startswith("*>exit"):
-        print(message.author)
         if message.author.name != "Ralphinium":
             await client.send_message(message.channel, "You don't own me!")
             return
@@ -112,7 +151,7 @@ async def on_message(message):
 
     elif message.content.startswith("*>end_game"):
         await client.send_message(message.channel, "Ending current game. GG!")
-        g.end()
+        mafia.end_game()
 
     elif message.content.startswith("*>help"):
         await client.send_message(message.author, "- *>start <num_seconds> to "
@@ -124,7 +163,8 @@ async def on_message(message):
 
 print("Starting mafia bot.")
 
-g = classes.Game()
+mafia = classes.MafiaGame()
+lex = classes.LexicantGame()
 
 try:
     client.run(get_pass())
