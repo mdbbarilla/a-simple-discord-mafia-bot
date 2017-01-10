@@ -48,6 +48,7 @@ async def on_message(message):
 
                 #Starts the game, automatically allowing joining in the game.
                 mafia.start_game()
+                mafia.set_channel(message.channel)
                 await asyncio.sleep(mafia.timeout)
 
                 #Stop accepting players.
@@ -166,24 +167,27 @@ async def on_message(message):
                 await client.send_message(message.channel, "You can only lynch during the day.")
             else:
                 mafia.vote_table[to_kill_player] += 1
-                alive_mafia = [m.user for m in mafia.players if m.is_alive]
+                alive_mafia = [m.user for m in mafia.mafias if m.is_alive]
                 for am in alive_mafia:
                     await client.send_message(am, "<@{}> wants to kill <@{}>!".format(killer.id, to_kill_player.user.id))
-
+                    print("Alive mafia: {}".format(len(alive_mafia)))
+                    print("Votes on the guy: {}".format(mafia.vote_table[to_kill_player]))
+                    
                     if mafia.vote_table[to_kill_player] >= len(alive_mafia):
                         mafia.day_phase = "Day"
                         mafia.day_num += 1
-                        await client.send_message(message.channel, "It is "
+                        await client.send_message(mafia.gen_channel, "It is "
                         "now {} {}.".format(mafia.day_phase, mafia.day_num))
-                        await client.send_message(message.channel, "<@{}> has been died!".format(lynching.id))
+                        await client.send_message(mafia.gen_channel, "<@{}> has been died! ".format(to_kill_player.user.id))
+                        to_kill_player.is_alive = False
 
                         if mafia.are_townies_winning():
-                            await client.send_message(message.channel, "Townies won!")
+                            await client.send_message(mafia.gen_channel, "Townies won!")
                             mafia.end_game()
                             return
 
                         elif mafia.are_mafias_winning():
-                            await client.send_message(message.channel, "Mafias won!")
+                            await client.send_message(mafia.gen_channel, "Mafias won!")
                             mafia.end_game()
                             return
 
@@ -233,15 +237,18 @@ async def on_message(message):
         elif message.content.startswith("*>help"):
             await help(client, message.author)
 
-        # elif mafia.day_phase == "Night" and message.channel.is_private:
-        #     #Mafia is PM-ing bot who to kill
-        #     killer = message.author
-        #     if killer not in mafia.user_to_player:
-        #         await client.send_message(message.channel, "Sorry, you're not in the game, you can't do that.")
-        #         return
-
-
-
+        elif mafia.day_phase == "Night" and message.channel.is_private:
+            killer = message.author
+            if killer not in mafia.user_to_player:
+                await client.send_message(message.channel, "Sorry, you're not in the game, you can't do that.")
+                return
+            elif mafia.user_to_player[killer].role != "Mafia":
+                await client.send_message(message.channel, "Go sleep!")
+                return
+            else:
+                for m in mafia.mafias:
+                    if m.is_alive:
+                        await client.send_message(m.user, "<@{}>: {}".format(killer.id, message.content[2:]))
 
 mafia = classes.MafiaGame()
 lex = classes.LexicantGame()

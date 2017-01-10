@@ -46,14 +46,6 @@ class Player:
     def role(self, role):
         self._role = role
 
-    @property
-    def is_voting_for(self):
-        return self.is_voting_for
-
-    @is_voting_for.setter
-    def is_voting_for(self, user):
-        self.is_voting_for = user
-
 class MafiaGame:
     def __init__(self, accepting_timeout=DEFAULT_TIMEOUT):
         self.is_accepting = False
@@ -66,6 +58,10 @@ class MafiaGame:
         self.day_phase = "Day"
         self.vote_table = None
         self.user_to_player = None
+        self.gen_channel = None
+
+    def set_channel(self, channel):
+        self.gen_channel = channel
 
     def stop_accepting(self):
         self.is_accepting = False
@@ -80,7 +76,7 @@ class MafiaGame:
         self.townies = []
         self.mafias = []
         self.day_num = 1
-        self.day_phase = "Night"
+        self.day_phase = "Day"
         self.vote_table = None
         self.user_to_player = None
         print("Game has started!")
@@ -93,7 +89,7 @@ class MafiaGame:
         self.mafias = []
         self.alive = []
         self.day_num = 1
-        self.day_phase = "Night"
+        self.day_phase = ""
         self.vote_table = None
         self.user_to_player = None
         self.timeout = DEFAULT_TIMEOUT
@@ -101,7 +97,8 @@ class MafiaGame:
 
     def give_roles(self):
         num_players = len(self.players)
-        num_mafia = num_players # math.ceil(num_players/4)
+        # num_mafia = num_players
+        num_mafia = math.ceil(num_players/4)
         num_towny = num_players - num_mafia
 
         mafias = random.sample(self.players, num_mafia)
