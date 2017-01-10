@@ -28,6 +28,7 @@ class Player:
         self.is_alive = True
         self._role = None
         self.votes_for = None
+        self.is_voting_for = None
 
     @property
     def name(self):
@@ -44,6 +45,14 @@ class Player:
     @role.setter
     def role(self, role):
         self._role = role
+
+    @property
+    def is_voting_for(self):
+        return self.is_voting_for
+
+    @is_voting_for.setter
+    def is_voting_for(self, user):
+        self.is_voting_for = user
 
 class MafiaGame:
     def __init__(self, accepting_timeout=DEFAULT_TIMEOUT):
@@ -71,7 +80,9 @@ class MafiaGame:
         self.townies = []
         self.mafias = []
         self.day_num = 1
-        self.day_phase = "Day"
+        self.day_phase = "Night"
+        self.vote_table = None
+        self.user_to_player = None
         print("Game has started!")
 
     def end_game(self):
@@ -80,14 +91,17 @@ class MafiaGame:
         self.players = []
         self.townies = []
         self.mafias = []
+        self.alive = []
         self.day_num = 1
-        self.day_phase = "Day"
+        self.day_phase = "Night"
+        self.vote_table = None
+        self.user_to_player = None
         self.timeout = DEFAULT_TIMEOUT
         print("Game has ended!")
 
     def give_roles(self):
         num_players = len(self.players)
-        num_mafia = math.ceil(num_players/4)
+        num_mafia = num_players # math.ceil(num_players/4)
         num_towny = num_players - num_mafia
 
         mafias = random.sample(self.players, num_mafia)
@@ -102,6 +116,7 @@ class MafiaGame:
         self.mafias = mafias
         self.townies = townies
         self.players = mafias + townies
+        self.alive = self.players
         users = [p.user for p in self.players]
         self.user_to_player = dict(zip(users, self.players))
 
