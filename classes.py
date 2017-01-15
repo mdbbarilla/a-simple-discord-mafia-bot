@@ -76,7 +76,7 @@ class MafiaGame:
         self.townies = []
         self.mafias = []
         self.day_num = 1
-        self.day_phase = "Night"
+        self.day_phase = "Day"
         self.vote_table = None
         self.user_to_player = None
 
@@ -86,18 +86,17 @@ class MafiaGame:
         self.players = []
         self.townies = []
         self.mafias = []
-        self.alive = []
         self.day_num = 1
-        self.day_phase = ""
+        self.day_phase = "Day"
         self.vote_table = None
         self.user_to_player = None
         self.timeout = DEFAULT_TIMEOUT
 
     def give_roles(self):
         num_players = len(self.players)
-        num_mafia = num_players
+        # num_mafia = num_players
         # num_mafia = math.ceil(num_players/4)
-        # num_mafia = round(num_players/4)
+        num_mafia = round(num_players/4)
         num_towny = num_players - num_mafia
 
         mafias = random.sample(self.players, num_mafia)

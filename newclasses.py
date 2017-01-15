@@ -1,3 +1,5 @@
+import math
+import random
 from abc import ABC, abstractmethod
 
 class AbstractRole(ABC):
@@ -69,10 +71,91 @@ class MafiaGame:
     """Represents the entire Game and its various states.
 
     Attributes:
+        accepting_timeout(int): how long the game waits for new players.
+        is_accepting(bool): if the game is accepting players or not.
+        is_ongoing(bool): if the game is ongoing or not.
+        players(list of `Player`): the list of all players in this game.
+        townies(list of `Player`): the list of all townies in this game.
+        mafia(list of `Player`): the list of all mafias in this game.
+        alive(list of `Player`): the list of all alive players in this game.
+        roles(dict of `AbstractRole`): list of all roles in this game.
+        day_num(int): which day is it in the game.
+        day_phase(str): if it is day or night.
+        vote_table(dict): a dictionary that represents the vote tally.
+        user_to_player(dict): maps discord users to players that represent them.
+        gen_channel(obj): the channel that game has started on.
+        client(obj): the bot that handles this game.
     """
     def __init__(self):
         self.accepting_timeout = 10
         self.is_accepting = False
         self.is_ongoing = False
         self.players = []
-        self.roles = []
+        self.townies = []
+        self.mafia = []
+        self.alive = []
+        self.roles = {}
+        self.day_num = 1
+        self.day_phase = "Day"
+        self.vote_table = {}
+        self.user_to_player = {}
+        self.gen_channel = None
+        self.client = None
+
+    def start_game(self):
+        """Starts the game.
+
+        Initializes all variables and automatically starts accepting players.
+        """
+        self.is_accepting = True
+        self.is_ongoing = True
+        self.players = []
+        self.townies = []
+        self.mafia = []
+        self.roles = {}
+        self.day_num = 1
+        self.day_phase = "Day"
+        self.vote_table = {}
+        self.user_to_player = {}
+        self.gen_channel = None
+
+    def end_game(self):
+        """Ends the game.
+
+        Initializes all variables and ends the game.
+        """
+        self.is_accepting = True
+        self.is_ongoing = True
+        self.players = []
+        self.towns = []
+        self.mafia = []
+        self.roles = {}
+        self.alive = []
+        self.day_num = 1
+        self.day_phase = "Day"
+        self.vote_table = {}
+        self.user_to_player = {}
+        self.gen_channel = None
+
+    async def give_roles(self):
+        """Gives out roles to the players.
+        """
+        self.roles = {'mafia': Mafia(""), 'town': TownRole()}
+
+        num_players = len(self.players)
+        num_mafia = round(num_players/4)
+        num_towny = num_players - num_mafia
+
+        mafias = random.sample(self.players, num_mafia)
+        townie = list(set(self.players) - set(mafias))
+
+        if mafias:
+            for m in mafias:
+                m.role = self.roles['mafia']
+
+        if townie:
+            for t in townie:
+                t.role = self.roles['town']
+
+        self.mafia = mafias
+        self.townies = townies
