@@ -105,10 +105,35 @@ async def on_message(message):
                     await client.send_message(message.channel, "You can't lynch someone who isn't in the game!")
 
                 else:
+                    lyncher = mafia.user_to_player[message.author]
+                    lynched = mafia.user_to_player[lynching]
                     #Check if lynched person is alive.
-                    if mafia.user_to_player[lynching].is_alive:
-                        await client.send_message(message.channel, "{} voted for {}!".format(message.author.name, lynching.name))
-                        mafia.vote_table[mafia.user_to_player[lynching]] += 1
+                    if lynched.is_alive:
+                        #Check if the lyncher has already voted.
+                        if lyncher.votes_for is None:
+                            await client.send_message(message.channel,
+                            "{} voted for {}!".format(message.author.name, lynching.name))
+                        else:
+                            await client.send_message(message.channel,
+                            "{} has changed their vote to {}!".format(message.author.name, lynching.name))
+                            mafia.vote_table[lyncher.votes_for] -= 1
+
+                        #Update the vote table.
+                        mafia.vote_table[lynched] += 1
+                        lyncher.votes_for = lynched
+
+                        #Print out votes.
+                        await client.send_message(mafia.gen_channel, "The votes currently are: ")
+                        current_table = ""
+                        for player, votes in mafia.vote_table.items():
+                            current_table += "{}({}) - ".format(player.user.name, votes)
+                            voted_by = []
+                            for p in mafia.vote_table:
+                                if p.votes_for == player:
+                                    voted_by.append(p.user.name)
+                            current_table += ", ".join(voted_by)
+                            current_table += "\n"
+                        await client.send_message(mafia.gen_channel, current_table)
 
                         #Check if death happens.
                         if mafia.vote_table[mafia.user_to_player[lynching]] >= math.floor(len(mafia.vote_table)/2)+1:
@@ -131,6 +156,7 @@ async def on_message(message):
                             "now {} {}.".format(mafia.day_phase, mafia.day_num))
                     else:
                         await client.send_message(message.channel, "{} is already dead!".format(p.name))
+
             elif mafia.is_ongoing and mafia.day_phase == "Night":
                 await client.send_message(message.channel, "No lynching during "
                 "nights. Go sleep!")
@@ -166,30 +192,54 @@ async def on_message(message):
             elif mafia.day_phase == "Day":
                 await client.send_message(message.channel, "You can only lynch during the day.")
             else:
-                mafia.vote_table[to_kill_player] += 1
                 alive_mafia = [m.user for m in mafia.mafias if m.is_alive]
+
+                if killer_player.votes_for is None:
+                    mafia.vote_table[to_kill_player] += 1
+                    for am in alive_mafia:
+                        if am != message.author:
+                            await client.send_message(am, "<@{}> wants to kill <@{}>!".format(killer.id, to_kill_player.user.id))
+
+                else:
+                    mafia.vote_table[killer_player.votes_for] -= 1
+                    mafia.vote_table[to_kill_player] += 1
+                    for am in alive_mafia:
+                        if am != message.author:
+                            await client.send_message(am, "<@{}> now wants to kill <@{}>!".format(killer.id, to_kill_player.user.id))
+
+                killer_player.votes_for = to_kill_player
+                current_table = ""
+                for player, votes in mafia.vote_table.items():
+                    current_table += "{}({}) - ".format(player.user.name, votes)
+                    voted_by = []
+                    for p in mafia.vote_table:
+                        if p.votes_for == player:
+                            voted_by.append(p.user.name)
+                    current_table += ", ".join(voted_by)
+                    current_table += "\n"
                 for am in alive_mafia:
-                    await client.send_message(am, "<@{}> wants to kill <@{}>!".format(killer.id, to_kill_player.user.id))
-                    print("Alive mafia: {}".format(len(alive_mafia)))
-                    print("Votes on the guy: {}".format(mafia.vote_table[to_kill_player]))
-                    
-                    if mafia.vote_table[to_kill_player] >= len(alive_mafia):
-                        mafia.day_phase = "Day"
-                        mafia.day_num += 1
-                        await client.send_message(mafia.gen_channel, "It is "
-                        "now {} {}.".format(mafia.day_phase, mafia.day_num))
-                        await client.send_message(mafia.gen_channel, "<@{}> has been died! ".format(to_kill_player.user.id))
-                        to_kill_player.is_alive = False
+                    await client.send_message(am, "The votes currently are: ")
+                    await client.send_message(am, current_table)
 
-                        if mafia.are_townies_winning():
-                            await client.send_message(mafia.gen_channel, "Townies won!")
-                            mafia.end_game()
-                            return
+                if mafia.vote_table[to_kill_player] >= len(alive_mafia):
+                    mafia.day_phase = "Day"
+                    mafia.day_num += 1
+                    await client.send_message(mafia.gen_channel, "It is "
+                    "now {} {}.".format(mafia.day_phase, mafia.day_num))
+                    await client.send_message(mafia.gen_channel, "<@{}> has died! ".format(to_kill_player.user.id))
+                    to_kill_player.is_alive = False
 
-                        elif mafia.are_mafias_winning():
-                            await client.send_message(mafia.gen_channel, "Mafias won!")
-                            mafia.end_game()
-                            return
+                    mafia.make_vote_table()
+
+                    if mafia.are_townies_winning():
+                        await client.send_message(mafia.gen_channel, "Townies won!")
+                        mafia.end_game()
+                        return
+
+                    elif mafia.are_mafias_winning():
+                        await client.send_message(mafia.gen_channel, "Mafias won!")
+                        mafia.end_game()
+                        return
 
         elif message.content.startswith("*>whoami"):
             if mafia.is_ongoing:
@@ -201,7 +251,7 @@ async def on_message(message):
                     if p.name == message.author.name:
                         found = True
                         if p.is_alive:
-                            if p.is_mafia:
+                            if p.role == "Mafia":
                                 await client.send_message(message.author, "You are "
                                 "a mafia.")
                             else:

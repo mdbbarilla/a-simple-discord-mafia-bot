@@ -56,7 +56,7 @@ class MafiaGame:
         self.mafias = []
         self.day_num = 1
         self.day_phase = "Day"
-        self.vote_table = None
+        self.vote_table = {}
         self.user_to_player = None
         self.gen_channel = None
 
@@ -76,10 +76,9 @@ class MafiaGame:
         self.townies = []
         self.mafias = []
         self.day_num = 1
-        self.day_phase = "Day"
+        self.day_phase = "Night"
         self.vote_table = None
         self.user_to_player = None
-        print("Game has started!")
 
     def end_game(self):
         self.is_accepting = False
@@ -93,12 +92,12 @@ class MafiaGame:
         self.vote_table = None
         self.user_to_player = None
         self.timeout = DEFAULT_TIMEOUT
-        print("Game has ended!")
 
     def give_roles(self):
         num_players = len(self.players)
-        # num_mafia = num_players
-        num_mafia = math.ceil(num_players/4)
+        num_mafia = num_players
+        # num_mafia = math.ceil(num_players/4)
+        # num_mafia = round(num_players/4)
         num_towny = num_players - num_mafia
 
         mafias = random.sample(self.players, num_mafia)
@@ -119,6 +118,8 @@ class MafiaGame:
 
     def make_vote_table(self):
         alive = [p for p in self.players if p.is_alive]
+        for p in alive:
+            p.votes_for = None
         zeroes = [0] * len(alive)
         self.vote_table = dict(zip(alive, zeroes))
 
