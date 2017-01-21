@@ -107,6 +107,15 @@ async def on_message(message):
                 else:
                     lyncher = mafia.user_to_player[message.author]
                     lynched = mafia.user_to_player[lynching]
+                    #Check if lyncher is alive.
+                    if not lyncher.is_alive:
+                        await client.send_message(message.channel, "You're dead!")
+                        return
+
+                    if lyncher.is_no_lynch:
+                        mafia.no_lynch -= 1
+                        lyncher.is_no_lynch = False
+
                     #Check if lynched person is alive.
                     if lynched.is_alive:
                         #Check if the lyncher has already voted.
@@ -133,6 +142,7 @@ async def on_message(message):
                                     voted_by.append(p.user.name)
                             current_table += ", ".join(voted_by)
                             current_table += "\n"
+                        current_table += "No lynch({})".format(mafia.no_lynch)
                         await client.send_message(mafia.gen_channel, current_table)
 
                         #Check if death happens.
@@ -160,6 +170,51 @@ async def on_message(message):
             elif mafia.is_ongoing and mafia.day_phase == "Night":
                 await client.send_message(message.channel, "No lynching during "
                 "nights. Go sleep!")
+
+        elif message.content.startswith("*>nolynch"):
+            #Check if sender is part of the game.
+            if message.author.name not in [p.name for p in mafia.players]:
+                await client.send_message(message.channel, "Sorry, you're not in the game, you can't do that.")
+                return
+
+            #Check if the game is ongoing and it is currently day phase.
+            if mafia.is_ongoing and mafia.day_phase == "Day":
+                lyncher = mafia.user_to_player[message.author]
+
+                if not lyncher.is_alive:
+                    await client.send_message(mafia.gen_channel, "You're dead!")
+                    return
+
+                if lyncher.votes_for:
+                    mafia.vote_table[lyncher.votes_for] -= 1
+
+                if lyncher.is_no_lynch:
+                    return
+
+                lyncher.votes_for = None
+                lyncher.is_no_lynch = True
+                mafia.no_lynch += 1
+
+                await client.send_message(mafia.gen_channel, "<@{}> votes no lynch!".format(message.author.id))
+                await client.send_message(mafia.gen_channel, "The votes currently are: ")
+                current_table = ""
+                for player, votes in mafia.vote_table.items():
+                    current_table += "{}({}) - ".format(player.user.name, votes)
+                    voted_by = []
+                    for p in mafia.vote_table:
+                        if p.votes_for == player:
+                            voted_by.append(p.user.name)
+                    current_table += ", ".join(voted_by)
+                    current_table += "\n"
+                current_table += "No lynch({})".format(mafia.no_lynch)
+                await client.send_message(mafia.gen_channel, current_table)
+
+                if mafia.no_lynch_happens():
+                    await client.send_message(mafia.gen_channel, "No lynch!")
+                    mafia.make_vote_table()
+                    mafia.day_phase = "Night"
+                    await client.send_message(message.channel, "It is "
+                    "now {} {}.".format(mafia.day_phase, mafia.day_num))
 
         elif message.content.startswith("*>kill"):
             killer = message.author

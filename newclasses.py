@@ -1,5 +1,6 @@
 import math
 import random
+import asyncio
 from abc import ABC, abstractmethod
 
 class AbstractRole(ABC):
@@ -20,6 +21,9 @@ class AbstractRole(ABC):
         """Checks if this role has won the game.
         """
         pass
+
+    def __str__(self):
+        return self.role_name
 
 class MafiaRole(AbstractRole):
     """Implements the Mafia role, inheriting from `AbstractRole`.
@@ -83,11 +87,12 @@ class MafiaGame:
         day_phase(str): if it is day or night.
         vote_table(dict): a dictionary that represents the vote tally.
         user_to_player(dict): maps discord users to players that represent them.
+            mainly used to check if a discord user is part of the game.
         gen_channel(obj): the channel that game has started on.
         client(obj): the bot that handles this game.
     """
     def __init__(self):
-        self.accepting_timeout = 10
+        self.timeout = 10
         self.is_accepting = False
         self.is_ongoing = False
         self.players = []
@@ -102,8 +107,8 @@ class MafiaGame:
         self.gen_channel = None
         self.client = None
 
-    def start_game(self):
-        """Starts the game.
+    def init_game(self):
+        """Initializes the game.
 
         Initializes all variables and automatically starts accepting players.
         """
@@ -117,7 +122,6 @@ class MafiaGame:
         self.day_phase = "Day"
         self.vote_table = {}
         self.user_to_player = {}
-        self.gen_channel = None
 
     def end_game(self):
         """Ends the game.
@@ -137,8 +141,22 @@ class MafiaGame:
         self.user_to_player = {}
         self.gen_channel = None
 
+    def add_player(self, discord_user):
+        self.players.append(Player(discord_user))
+
+    async def send_message(channel, message):
+        """Sends a `message` to a `channel`.
+        """
+        await self.client.send_message(channel, message)
+
     async def give_roles(self):
         """Gives out roles to the players.
+
+        Also handles segregating players into `mafia` and `townies` lists and
+        populate the `user_to_player` dictionary.
+
+        Finally, sends a direct message to each discord user about the details
+        of their player.
         """
         self.roles = {'mafia': Mafia(""), 'town': TownRole()}
 
@@ -159,3 +177,40 @@ class MafiaGame:
 
         self.mafia = mafias
         self.townies = townies
+        self.alive = self.players
+        users = [p.user for p in self.players]
+        self.user_to_player = dict(zip(users, self.players))
+
+        for p in self.players:
+            await send_message(p.user, "You are a {}.".format(str(p.role)))
+
+        if len(self.mafia) > 1:
+            for m in self.mafia:
+                allies = self.mafia[:].remove(m)
+                allies_message = "Your allies are {}".format(", ".join(allies))
+                await send_message(allies_message)
+
+    async def start_new_game(self, message):
+        """ Starts a new game!
+
+        Takes the initial message to start the game and the channel the game
+        was started on.
+        """
+        self.init_game()
+
+        opening_text = """
+        A Mafia game has started!
+        Players who want to join may type ':>join'.
+        Joining period will last for {} seconds.""".format(self.timeout)
+        await self.client.send_message(self.gen_channel, opening_text)
+
+        args = message.content.split(" ")
+        if len(args) > 1:
+            try:
+                self.timeout = int(args[1])
+            except:
+                self.timeout = 0
+        await asyncio.sleep(self.timeout)
+
+        end_message = """Joining period has ended! The players are:\n"""
+        end_message += ", ".join([p.user.name])

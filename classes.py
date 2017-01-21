@@ -28,7 +28,7 @@ class Player:
         self.is_alive = True
         self._role = None
         self.votes_for = None
-        self.is_voting_for = None
+        self.is_no_lynch = False
 
     @property
     def name(self):
@@ -59,6 +59,7 @@ class MafiaGame:
         self.vote_table = {}
         self.user_to_player = None
         self.gen_channel = None
+        self.no_lynch = 0
 
     def set_channel(self, channel):
         self.gen_channel = channel
@@ -79,6 +80,7 @@ class MafiaGame:
         self.day_phase = "Day"
         self.vote_table = None
         self.user_to_player = None
+        self.no_lynch = 0
 
     def end_game(self):
         self.is_accepting = False
@@ -91,6 +93,7 @@ class MafiaGame:
         self.vote_table = None
         self.user_to_player = None
         self.timeout = DEFAULT_TIMEOUT
+        self.no_lynch = 0
 
     def give_roles(self):
         num_players = len(self.players)
@@ -119,8 +122,10 @@ class MafiaGame:
         alive = [p for p in self.players if p.is_alive]
         for p in alive:
             p.votes_for = None
+            p.is_no_lynch = False
         zeroes = [0] * len(alive)
         self.vote_table = dict(zip(alive, zeroes))
+        self.no_lynch = 0
 
     def are_townies_winning(self):
         mafia_status = [m.is_alive for m in self.mafias]
@@ -137,6 +142,13 @@ class MafiaGame:
             return True
         else:
             return False
+
+    def no_lynch_happens(self):
+        alive = [p.is_alive for p in self.players]
+
+        if self.no_lynch >= math.ceil(len(alive)/2):
+            return True
+        return False
 
 class LexicantGame:
     def __init__(self, accepting_timeout=DEFAULT_TIMEOUT):
