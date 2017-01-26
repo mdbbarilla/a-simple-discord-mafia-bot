@@ -1,20 +1,21 @@
-import math
 import random
 import asyncio
+import discord
 from abc import ABC, abstractmethod
+from typing import List, Dict
+
 
 class AbstractRole(ABC):
     """Abstract class all roles in the game have to inherit from.
 
     Attributes:
-        role_name (str): name of the role of this object.
-        game (newclasses.Game): the Game which this class belongs to.
+     :param str role_name: name of the role of this object.
+     :param Game game: the Game which this class belongs to.
     """
 
     def __init__(self, role_name, game):
-        self.role_name = role_name
-        self.game = game
-        super(AbstractOperation, self).__init__()
+        self.role_name = role_name  # type: str
+        self.game = game            # type: MafiaGame
 
     @abstractmethod
     def win_condition(self):
@@ -25,24 +26,26 @@ class AbstractRole(ABC):
     def __str__(self):
         return self.role_name
 
+
 class MafiaRole(AbstractRole):
     """Implements the Mafia role, inheriting from `AbstractRole`.
 
     Attributes:
-        game (newclasses.Game): the Game which this class belongs to.
+    :param Game game: the Game which this class belongs to.
     """
 
     def __init__(self, name, game):
-        super(MafiaRole,self).__init__("Mafia " + name, game)
+        super(MafiaRole, self).__init__("Mafia " + name, game)
 
     def win_condition(self):
         pass
+
 
 class TownRole(AbstractRole):
     """Implements the Mafia role, inheriting from `AbstractRole`.
 
     Attributes:
-        game (newclasses.Game): the Game which this class belongs to.
+    :param Game game: the Game which this class belongs to.
     """
 
     def __init__(self, game):
@@ -50,6 +53,7 @@ class TownRole(AbstractRole):
 
     def win_condition(self):
         pass
+
 
 class Player:
     """Represents a player in the `Game`.
@@ -59,53 +63,56 @@ class Player:
     player is currently voting for (to lynch or kill).
 
     Attributes:
-        user(discord.User): the user this Player represents.
-        role(newclasses.AbstractRole): this Player's role.
-        is_alive(bool): this Player's status (if is alive in-game or not).
-        votes_for(newclasses.Player): who this Player is voting for (in lynching
-        or killing phases of the game.)
+    :param discord.User user: the user this Player represents.
+    :param AbstractRole role: this Player's role.
+    :param bool is_alive: this Player's status (if is alive in-game or not).
+    :param Player votes_for: who this Player is voting for (in lynching
+    or killing phases of the game.)
     """
+
     def __init__(self, discord_user):
-        self.user = discord_user
-        self.role = None
-        self.is_alive = True
-        self.votes_for = None
+        self.user = discord_user        # type: discord.User
+        self.role = None                # type: AbstractRole
+        self.is_alive = True            # type: bool
+        self.votes_for = None           # type: Player
+
 
 class MafiaGame:
     """Represents the entire Game and its various states.
 
     Attributes:
-        accepting_timeout(int): how long the game waits for new players.
-        is_accepting(bool): if the game is accepting players or not.
-        is_ongoing(bool): if the game is ongoing or not.
-        players(list of `Player`): the list of all players in this game.
-        townies(list of `Player`): the list of all townies in this game.
-        mafia(list of `Player`): the list of all mafias in this game.
-        alive(list of `Player`): the list of all alive players in this game.
-        roles(dict of `AbstractRole`): list of all roles in this game.
-        day_num(int): which day is it in the game.
-        day_phase(str): if it is day or night.
-        vote_table(dict): a dictionary that represents the vote tally.
-        user_to_player(dict): maps discord users to players that represent them.
-            mainly used to check if a discord user is part of the game.
-        gen_channel(obj): the channel that game has started on.
+    :param int timeout: how long the game waits for new players.
+    :param bool is_accepting: if the game is accepting players or not.
+    :param bool is_ongoing: if the game is ongoing or not.
+    :param List[Player] players: the list of all players in this game.
+    :param List[Player] townies: the list of all townies in this game.
+    :param List[Player] mafia: the list of all mafias in this game.
+    :param List[Player] alive: the list of all alive players in this game.
+    :param Dict[str, AbstractRole]: list of all roles in this game.
+    :param int day_num: which day is it in the game.
+    :param str day_phase: if it is day or night.
+    :param Dict[Player, int]: a dictionary that represents the vote tally.
+    :param Dict[discord.user, Player]: maps discord users to players that represent them.
+    Mainly used to check if a discord user is part of the game.
+    :param discord.Channel gen_channel: the channel that game has started on.
         client(obj): the bot that handles this game.
     """
+
     def __init__(self):
-        self.timeout = 10
-        self.is_accepting = False
-        self.is_ongoing = False
-        self.players = []
-        self.townies = []
-        self.mafia = []
-        self.alive = []
-        self.roles = {}
-        self.day_num = 1
-        self.day_phase = "Day"
-        self.vote_table = {}
-        self.user_to_player = {}
-        self.gen_channel = None
-        self.client = None
+        self.timeout = 10               # type: int
+        self.is_accepting = False       # type: bool
+        self.is_ongoing = False         # type: bool
+        self.players = []               # type: List[Player]
+        self.townies = []               # type: List[Player]
+        self.mafia = []                 # type: List[Player]
+        self.alive = []                 # type: List[Player]
+        self.roles = {}                 # type: Dict[str, AbstractRole]
+        self.day_num = 1                # type: int
+        self.day_phase = "Day"          # type: str
+        self.vote_table = {}            # type: Dict[Player, int]
+        self.user_to_player = {}        # type: Dict[discord.User, Player]
+        self.gen_channel = None         # type: discord.Channel
+        self.client = None              # type: discord.Client
 
     def init_game(self):
         """Initializes the game.
@@ -131,7 +138,7 @@ class MafiaGame:
         self.is_accepting = True
         self.is_ongoing = True
         self.players = []
-        self.towns = []
+        self.townies = []
         self.mafia = []
         self.roles = {}
         self.alive = []
@@ -144,7 +151,7 @@ class MafiaGame:
     def add_player(self, discord_user):
         self.players.append(Player(discord_user))
 
-    async def send_message(channel, message):
+    async def send_message(self, channel, message):
         """Sends a `message` to a `channel`.
         """
         await self.client.send_message(channel, message)
@@ -158,21 +165,21 @@ class MafiaGame:
         Finally, sends a direct message to each discord user about the details
         of their player.
         """
-        self.roles = {'mafia': Mafia(""), 'town': TownRole()}
+        self.roles = {'mafia': MafiaRole("", self), 'town': TownRole(self)}
 
         num_players = len(self.players)
-        num_mafia = round(num_players/4)
-        num_towny = num_players - num_mafia
+        num_mafia = round(num_players / 4)
+        # num_towny = num_players - num_mafia
 
         mafias = random.sample(self.players, num_mafia)
-        townie = list(set(self.players) - set(mafias))
+        townies = list(set(self.players) - set(mafias))
 
         if mafias:
             for m in mafias:
                 m.role = self.roles['mafia']
 
-        if townie:
-            for t in townie:
+        if townies:
+            for t in townies:
                 t.role = self.roles['town']
 
         self.mafia = mafias
@@ -182,13 +189,15 @@ class MafiaGame:
         self.user_to_player = dict(zip(users, self.players))
 
         for p in self.players:
-            await send_message(p.user, "You are a {}.".format(str(p.role)))
+            await self.send_message(p.user, "You are a {}.".format(str(p.role)))
 
         if len(self.mafia) > 1:
             for m in self.mafia:
-                allies = self.mafia[:].remove(m)
-                allies_message = "Your allies are {}".format(", ".join(allies))
-                await send_message(allies_message)
+                allies = self.mafia[:]
+                allies.remove(m)
+                allies_names = [ally.user.name for ally in allies]
+                allies_message = "Your allies are {}".format(", ".join(allies_names))
+                await self.send_message(self.gen_channel, allies_message)
 
     async def start_new_game(self, message):
         """ Starts a new game!
@@ -208,9 +217,9 @@ class MafiaGame:
         if len(args) > 1:
             try:
                 self.timeout = int(args[1])
-            except:
+            except ValueError:
                 self.timeout = 0
         await asyncio.sleep(self.timeout)
 
         end_message = """Joining period has ended! The players are:\n"""
-        end_message += ", ".join([p.user.name])
+        end_message += ", ".join([p.user.name for p in self.players])
