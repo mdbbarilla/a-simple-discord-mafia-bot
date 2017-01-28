@@ -2,13 +2,16 @@ import asyncio
 import math
 import random
 from abc import ABC, abstractmethod
-from typing import List, Dict
+from functools import partial
+from typing import List, Dict, Union
+from textwrap import dedent
 
 import discord
 
 
 class AbstractRole(ABC):
-    """Abstract class all roles in the game have to inherit from.
+    """
+    Abstract class all roles in the game have to inherit from.
 
     Attributes:
      :param str role_name: name of the role of this object.
@@ -20,9 +23,10 @@ class AbstractRole(ABC):
         self.game = game            # type: MafiaGame
 
     @abstractmethod
-    def win_condition(self):
+    def win_condition(self) -> bool:
         """
         Checks if this role has won the game.
+        Returns a pair of boolean signalling if this role won and if the game should end.
         """
         pass
 
@@ -31,35 +35,62 @@ class AbstractRole(ABC):
 
 
 class MafiaRole(AbstractRole):
-    """Implements the Mafia role, inheriting from `AbstractRole`.
+    """
+    Implements the Mafia role, inheriting from `AbstractRole`.
 
     Attributes:
     :param Game game: the Game which this class belongs to.
     """
 
     def __init__(self, name, game):
-        super(MafiaRole, self).__init__("Mafia " + name, game)
+        super(MafiaRole, self).__init__("Mafia" + name, game)
 
-    def win_condition(self):
-        pass
+    def win_condition(self) -> bool:
+        if len(self.game.mafia) >= len(self.game.townies)/2:
+            return True, True
+        return False, False
 
 
 class TownRole(AbstractRole):
-    """Implements the Mafia role, inheriting from `AbstractRole`.
+    """
+    Implements the Mafia role, inheriting from `AbstractRole`.
 
     Attributes:
     :param Game game: the Game which this class belongs to.
     """
 
     def __init__(self, game):
-        super(TownRole, self).__init__("Townie", game)
+        super(TownRole, self).__init__("Town", game)
 
-    def win_condition(self):
-        pass
+    def win_condition(self) -> bool:
+        if len(self.game.mafia) == 0:
+            return True, True
+        return False, False
 
+
+class JesterRole(AbstractRole):
+    """
+    Implements the Jester role, inheriting from `AbstractRole`.
+
+    Attributes:
+    :param Game game: the Game which this class belongs to.
+    :param Player player: the Player who is a jester.
+    """
+    def __init__(self, game, player=None):
+        self.player = player        # type: Player
+        super(JesterRole, self).__init__("Jester", game)
+
+    def win_condition(self) -> bool:
+        if not self.player.is_alive:
+            return True, False
+        return False, False
+
+    def set_player(self, player):
+        self.player = player
 
 class Player:
-    """Represents a player in the `Game`.
+    """
+    Represents a player in the `Game`.
 
     A player consists of the `discord_user` that it is connected to, its `role`,
     its current status (whether dead or alive) and another `Player` that this
@@ -83,7 +114,8 @@ class Player:
 
 
 class MafiaGame:
-    """Represents the entire Game and its various states.
+    """
+    Represents the entire Game and its various states.
 
     Attributes:
     :param int timeout: how long the game waits for new players.
@@ -122,7 +154,8 @@ class MafiaGame:
         self.client = None          # type: discord.Client
 
     def init_game(self):
-        """Initializes the game.
+        """
+        Initializes the game.
 
         Initializes all variables and automatically starts accepting players.
         """
@@ -138,7 +171,8 @@ class MafiaGame:
         self.user_to_player = {}
 
     def end_game(self):
-        """Ends the game.
+        """
+        Ends the game.
 
         Initializes all variables and ends the game.
         """
@@ -168,7 +202,24 @@ class MafiaGame:
         :param Player player: The player to be killed.
         """
         self.alive.remove(player)
+        if player in self.townies:
+            self.townies.remove(player)
+        elif player in self.mafia:
+            self.mafia.remove(player)
         player.is_alive = False
+
+    def can_player_vote(self, user: discord.User):
+        """
+        Checks if the player can vote. A player can vote if he's in the game and he's alive.
+        """
+        if user not in self.user_to_player:
+            return False
+
+        player = self.user_to_player[user] # type:Player
+        if not player.is_alive:
+            return False
+
+        return True
 
     def make_vote_table(self):
         """
@@ -192,7 +243,10 @@ class MafiaGame:
             self.kill_player(voted)
             await self.progress_day()
         elif self.no_lynch >= math.ceil(len(self.alive)/2):
-            await self.send_message(self.gen_channel, "The town has voted for no lynch!")
+            if self.day_phase == "Day":
+                await self.send_message(self.gen_channel, "The town has voted for no lynch!")
+            else:
+                await self.send_to_all_mafia("The mafia has voted to kill no one!")
             await self.progress_day()
 
     async def progress_day(self):
@@ -210,8 +264,17 @@ class MafiaGame:
         self.no_lynch = 0
         self.make_vote_table()
         await self.send_message(self.gen_channel, "It is now {} {}.".format(self.day_phase, self.day_num))
+        if await self.check_win_conditions():
+            self.end_game()
 
-    async def print_votes(self):
+    async def check_win_conditions(self):
+        for role_name, role in self.roles.items():
+            is_win, is_game_end = role.win_condition()
+            if is_win:
+                await self.send_message(self.gen_channel, "{} won!".format(role))
+                return is_game_end
+
+    def print_votes(self):
         """
         Prints out the vote table and no lynch count to the channel.
         """
@@ -224,15 +287,34 @@ class MafiaGame:
                     voted_by.append(p.user.name)
             ret += ", ".join(voted_by) + "\n"
         ret += "No lynch({})".format(self.no_lynch)
+        return ret
+
+    async def print_alive_players(self):
+        """
+        Prints out all players who are still alive in the game.
+        """
+        ret = "The players who are alive are: "
+        alive_user_ids = [p.user.id for p in self.alive]
+        alive_user_id_strings = list(map("<@{}>".format, alive_user_ids))
+        ret += ", ".join(alive_user_id_strings)
         await self.send_message(self.gen_channel, ret)
 
-    async def send_message(self, channel, message):
+    async def send_message(self, channel: Union[discord.Channel, discord.User], message: discord.Message):
         """
         Sends a `message` to a `channel`.
         :param Union[discord.Channel, discord.User] channel: The user or channel to send the message to.
         :param str message: The string message to send.
         """
         await self.client.send_message(channel, message)
+
+    async def send_to_all_mafia(self, message: str):
+        """
+        Sends a `message` to all mafias via direct messages.
+        The bot will direct message everyone with the message.
+        """
+        for m in self.mafia:        # type: Player
+            assert m.is_alive # No, seriously, all players in this list should be alive.
+            await self.send_message(m.user, message)
 
     async def give_roles(self):
         """
@@ -246,10 +328,11 @@ class MafiaGame:
         """
         await self.send_message(self.gen_channel, "Assigning roles to players.")
 
-        self.roles = {'mafia': MafiaRole("", self), 'town': TownRole(self)}
+        self.roles = {'mafia': MafiaRole("", self), 'town': TownRole(self), 'j': JesterRole(self)}
 
         num_players = len(self.players)
         num_mafia = round(num_players / 4)
+        # num_mafia = num_players # for testing.
         # num_towny = num_players - num_mafia
 
         mafias = random.sample(self.players, num_mafia)
@@ -261,7 +344,11 @@ class MafiaGame:
 
         if townies:
             for t in townies:
-                t.role = self.roles['town']
+                if t.user.name == "Ralphinium":
+                    t.role = self.roles['j']
+                    self.roles['j'].set_player(t)
+                else:
+                    t.role = self.roles['town']
 
         self.mafia = mafias
         self.townies = townies
@@ -275,12 +362,12 @@ class MafiaGame:
             await self.send_message(p.user, "You are a {}.".format(str(p.role)))
 
         if len(self.mafia) > 1:
-            for m in self.mafia:
+            for m in self.mafia:        # type: Player
                 allies = self.mafia[:]
                 allies.remove(m)
                 allies_names = [ally.user.name for ally in allies]
                 allies_message = "Your allies are {}".format(", ".join(allies_names))
-                await self.send_message(self.gen_channel, allies_message)
+                await self.send_message(m.user, allies_message)
 
     async def start_new_game(self, message: discord.Message):
         """
@@ -297,16 +384,16 @@ class MafiaGame:
         self.init_game()
         self.gen_channel = message.channel  # type: discord.Channel
 
-        opening_text = 'A Mafia game has started! Players who want to join may type \':>join\'. Joining period will ' \
-                       'last for {} seconds.'.format(self.timeout)
-        await self.send_message(self.gen_channel, opening_text)
-
         args = message.content.split(" ")
         if len(args) > 1:
             try:
                 self.timeout = int(args[1])
             except ValueError:
                 self.timeout = 0
+
+        opening_text = 'A Mafia game has started! Players who want to join may type \':>join\'. Joining period will ' \
+                       'last for {} seconds.'.format(self.timeout)
+        await self.send_message(self.gen_channel, opening_text)
 
         if len(message.mentions) > 0:
             for m in message.mentions:
@@ -330,14 +417,13 @@ class MafiaGame:
         """
         assert self.is_ongoing is True
 
-        if message.author not in self.user_to_player:
-            await self.send_message(self.gen_channel, "Sorry, you are not part of the current game.")
+        if not message.channel == self.gen_channel: # Only vote on the channel the game was started on.
+            return
+
+        if not self.can_player_vote(message.author):
             return
 
         player = self.user_to_player[message.author]    # type: Player
-        if not player.is_alive:
-            await self.send_message(self.gen_channel, "Sorry, <@{}>. You're dead.".format(player.user.id))
-            return
 
         if len(message.mentions) < 1:
             await self.send_message(self.gen_channel, "You have to vote for someone! (Or no-lynch!)")
@@ -366,7 +452,7 @@ class MafiaGame:
         self.vote_table[player_being_lynched] += 1
         player.votes_for = player_being_lynched
 
-        await self.print_votes()
+        await self.send_message(self.gen_channel, self.print_votes())
         await self.check_if_day_should_progress(player_being_lynched)
 
     async def vote_no_lynch(self, message: discord.Message):
@@ -376,14 +462,21 @@ class MafiaGame:
         """
         assert self.is_ongoing is True
 
-        if message.author not in self.user_to_player:
-            await self.send_message(self.gen_channel, "Sorry, you are not part of the current game.")
+        if not message.channel == self.gen_channel: # Only vote on the channel the game was started on.
             return
 
-        player = self.user_to_player[message.author]  # type: Player
-        if not player.is_alive:
-            await self.send_message(self.gen_channel, "Sorry, <@{}>. You're dead.".format(player.user.id))
+        if not self.can_player_vote(message.author):
             return
+
+        # Set the send function to whatever it needs to be.
+        send_fn = partial(self.send_message, self.gen_channel) if self.day_phase == "Day" else self.send_to_all_mafia
+
+        player = self.user_to_player[message.author]  # type: Player
+
+        # Only mafia can vote during the night and they should do it using private messages.
+        if self.day_phase == "Night":
+            if not message.channel.is_private or player not in self.mafia:
+                return
 
         if player.is_no_lynch:
             return
@@ -395,8 +488,8 @@ class MafiaGame:
         player.is_no_lynch = True
         self.no_lynch += 1
 
-        await self.send_message(self.gen_channel, "<@{}> votes no lynch!".format(player.user.id))
-        await self.print_votes()
+        await send_fn("<@{}> votes no lynch!".format(player.user.id))
+        await send_fn(self.print_votes())
         await self.check_if_day_should_progress()
 
     async def vote_to_kill(self, message: discord.Message):
@@ -404,3 +497,51 @@ class MafiaGame:
         Updates the vote table to reflect that `player` is voting for someone.
         :param discord.Message message: The message sent to the bot.
         """
+        assert self.is_ongoing is True
+        if not message.channel.is_private:
+            # await self.send_message("Shh, it's night time.")
+            return
+
+        if not self.can_player_vote(message.author):
+            return
+
+        player = self.user_to_player[message.author]    # type: Player
+
+        if player not in self.mafia:
+            return
+
+        to_kill_name = message.content.split(" ")
+        if len(to_kill_name) < 2:
+            await self.send_message(message.author, "You have to vote for someone! (Or no-lynch!)")
+            return
+
+        user_to_kill = None
+        for user in self.user_to_player:        # type: discord.User
+            if user.name == to_kill_name[1]:
+                user_to_kill = user
+
+        print("Finding user.")
+        if not user_to_kill:
+            await self.send_message(message.author, "That player is not in the game.")
+            return
+
+        player_to_kill = self.user_to_player[user_to_kill]  # type: Player
+        if not player_to_kill.is_alive:
+            await self.send_message(message.author, "You have to vote for someone alive!")
+            return
+
+        if player.is_no_lynch:
+            player.is_no_lynch = False
+            self.no_lynch -= 1
+
+        if player.votes_for:
+            msg = "{} changed their vote to {}!"
+            self.vote_table[player.votes_for] -= 1
+        else:
+            msg = "{} voted for {}!"
+        await self.send_to_all_mafia(msg.format(message.author.name, user_to_kill.name))
+        self.vote_table[player_to_kill] += 1
+        player.votes_for = player_to_kill
+
+        await self.send_to_all_mafia(self.print_votes())
+        await self.check_if_day_should_progress(player_to_kill)
