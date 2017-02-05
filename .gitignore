@@ -3,5 +3,5 @@ __pycache__
 # Ignore PyCharm files.
 .idea
 # Ignore old files and private files.
-/_old_*.py
+old_files
 /secret_token.txt

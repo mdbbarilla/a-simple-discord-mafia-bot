@@ -594,7 +594,7 @@ class MafiaGame:
                 await self.send_to_all_mafia("<@{}>: {}".format(message.author.id, message.content[7:]))
 
     async def help(self, message):
-        with open("mafia_help.txt", "r") as help_file:
+        with open("help_texts/mafia_help.txt", "r") as help_file:
             help_msg = help_file.readlines()
         help_msg = "".join(help_msg)
         await self.send_message(message.author, help_msg)

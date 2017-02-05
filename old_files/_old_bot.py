@@ -3,7 +3,7 @@ import math
 
 import discord
 
-import _old_classes
+from old_files import _old_classes
 
 client = discord.Client()
 

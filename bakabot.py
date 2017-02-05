@@ -10,7 +10,7 @@ def get_pass():
     return p
 
 async def send_help(message):
-    with open("gen_help.txt", "r") as help_file:
+    with open("help_texts/gen_help.txt", "r") as help_file:
         help_msg = help_file.readlines()
     help_msg = "".join(help_msg)
     await client.send_message(message.author, help_msg)
