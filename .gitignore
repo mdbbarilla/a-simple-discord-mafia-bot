@@ -1,4 +1,7 @@
-/secret_token.txt
+# Ignore compiled files.
 __pycache__
+# Ignore PyCharm files.
 .idea
-_old*
+# Ignore old files and private files.
+/_old_*.py
+/secret_token.txt
