@@ -1,4 +1,4 @@
-# a-simple-discord-mafia-bot
+# Baka-Bot
 A simple bot for Discord that manages Mafia games. Currently only implements
 vanilla Mafia but will (hopefully) allow extensions to the game.
 

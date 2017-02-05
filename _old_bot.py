@@ -3,7 +3,7 @@ import math
 
 import discord
 
-import classes
+import _old_classes
 
 client = discord.Client()
 
@@ -366,8 +366,8 @@ async def on_message(message):
                         await client.send_message(m.user, "<@{}>: {}".format(killer.id, message.content[2:]))
 
 
-mafia = classes.MafiaGame()
-lex = classes.LexicantGame()
+mafia = _old_classes.MafiaGame()
+lex = _old_classes.LexicantGame()
 
 try:
     client.run(get_pass())
